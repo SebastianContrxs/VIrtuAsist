@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#142e32">
+    <title>VirtuAsist · Escaneo y asistencia</title>
+    <style>
+        :root { --ink:#193438; --muted:#647779; --green:#087c67; --line:#e1e9e6; --paper:#f4f7f5; }
+        * { box-sizing:border-box; }
+        body { margin:0; background:var(--paper); color:var(--ink); font-family:"Segoe UI",Arial,sans-serif; font-size:14px; line-height:1.5; }
+        .topbar { max-width:1440px; margin:auto; padding:25px 32px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+        .brand { font-size:23px; font-weight:700; letter-spacing:-.7px; }
+        .brand span { color:var(--green); }
+        .fecha { color:var(--muted); font-size:12px; text-align:right; }
+        main { max-width:1440px; margin:0 auto; padding:0 32px 32px; }
+        .panel { background:white; border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+        .panel-heading { padding:25px 28px; border-bottom:1px solid var(--line); }
+        h1 { margin:0; font-size:25px; line-height:1.25; letter-spacing:-.7px; font-weight:650; }
+        .panel-heading p { margin:7px 0 0; color:var(--muted); font-size:13px; }
+        .contenido { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); }
+        .camera-panel { padding:25px 28px; min-width:0; }
+        .camera-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:18px; }
+        h2 { margin:0; font-size:16px; font-weight:650; }
+        .estado { display:inline-flex; align-items:center; gap:7px; padding:6px 10px; border-radius:6px; font-size:11px; font-weight:600; background:#f0f3f4; color:#526971; }
+        .estado:before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+        .estado.activa { background:#e7f5ed; color:#17704c; }
+        .estado.error { background:#fff0ee; color:#ac4039; }
+        .camara { position:relative; width:100%; background:#11282c; border-radius:10px; overflow:hidden; }
+        #video { display:block; width:100%; aspect-ratio:4/3; object-fit:contain; background:#11282c; }
+        #marcos { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+        .camera-placeholder { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:16px; color:#b4d2c7; pointer-events:none; background:radial-gradient(ellipse at center,#203e40 0%,#11282c 75%); }
+        .camera-placeholder svg { width:64px; height:64px; }
+        .camera-placeholder p { margin:0; font-size:12px; }
+        .camera-panel:has(.estado.activa) .camera-placeholder { display:none; }
+        .camera-panel:has(.estado.error) .camera-placeholder p { display:none; }
+        .camera-panel:has(.estado.error) .camera-placeholder:after { content:"Cámara no disponible"; font-size:12px; }
+        .mensaje { margin-top:14px; padding:12px 14px; border:1px solid #e2eae6; background:#f6f9f7; color:#536e62; border-radius:8px; font-size:13px; line-height:1.6; overflow-wrap:anywhere; }
+        .mensaje.correcto { background:#eaf7ef; border-color:#c7e7d2; color:#1b7046; }
+        .mensaje.error { background:#fff1ef; border-color:#f1d1cb; color:#a13b32; }
+        .mensaje.advertencia { background:#fff7e8; border-color:#efdfbc; color:#8b601c; }
+        .asistencia { min-width:0; padding:25px 0; border-left:1px solid var(--line); }
+        .asistencia-heading { padding:0 24px 19px; }
+        .resumen { display:flex; flex-wrap:wrap; gap:7px 16px; margin:11px 0 0; color:var(--muted); font-size:12px; }
+        .resumen strong { color:var(--ink); font-variant-numeric:tabular-nums; }
+        .tabla-contenedor { overflow-x:auto; }
+        .tabla-contenedor:focus-visible { outline:3px solid #21b69a; outline-offset:-3px; }
+        table { width:100%; border-collapse:collapse; text-align:left; }
+        th { background:#f7faf8; padding:13px 18px; font-size:10px; letter-spacing:.6px; text-transform:uppercase; color:#526c5f; font-weight:600; }
+        td { padding:15px 18px; border-top:1px solid #edf1ee; font-size:12px; overflow-wrap:anywhere; }
+        td:nth-child(2) { font-weight:600; }
+        td:nth-child(3) { font-variant-numeric:tabular-nums; white-space:nowrap; }
+        .etiqueta-presente { display:inline-flex; align-items:center; gap:6px; background:#eaf6ed; color:#28794c; border-radius:5px; padding:4px 8px; font-size:10px; font-weight:600; }
+        .etiqueta-presente:before { content:""; width:5px; height:5px; border-radius:50%; background:#2b9260; }
+        td.sin-datos { padding:48px 24px; text-align:center; color:var(--muted); font-size:13px; font-weight:400; }
+        .table-note { margin:0; padding:15px 24px 0; border-top:1px solid var(--line); color:var(--muted); font-size:11px; }
+        @media(max-width:1000px) { .contenido { grid-template-columns:minmax(0,1fr); } .asistencia { border-left:0; border-top:1px solid var(--line); } .camara { max-width:680px; margin:auto; } }
+        @media(max-width:560px) { .topbar { padding:18px 16px; align-items:flex-start; } .brand { font-size:21px; } .fecha { max-width:150px; font-size:11px; } main { padding:0 12px 20px; } .panel { border-radius:12px; } .panel-heading { padding:20px 16px; } h1 { font-size:22px; } .camera-panel { padding:20px 16px; } .asistencia { padding:20px 0; } .asistencia-heading { padding:0 16px 16px; } table { min-width:420px; } th,td { padding:12px 14px; } .table-note { padding:14px 16px 0; } .mensaje { font-size:12px; } }
+    </style>
+</head>
+<body>
+    <form hidden>{% csrf_token %}</form>
+    <header class="topbar">
+        <div class="brand">VirtuAsist<span>.</span></div>
+        <div class="fecha" id="fecha"></div>
+    </header>
+    <main>
+        <section class="panel" aria-labelledby="titulo">
+            <div class="panel-heading">
+                <h1 id="titulo">Escaneo y asistencia</h1>
+                <p>Mira a la cámara y espera la confirmación de tu asistencia.</p>
+            </div>
+            <div class="contenido">
+                <div class="camera-panel">
+                    <div class="camera-heading">
+                        <h2>Escaneo facial</h2>
+                        <span id="estado" class="estado" role="status">Iniciando cámara...</span>
+                    </div>
+                    <div class="camara">
+                        <video id="video" autoplay playsinline muted aria-label="Cámara de reconocimiento facial"></video>
+                        <canvas id="marcos" aria-hidden="true"></canvas>
+                        <div class="camera-placeholder" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3"/><circle cx="12" cy="10" r="3"/><path d="M7 18c0-5 10-5 10 0"/></svg>
+                            <p>Conectando con la cámara...</p>
+                        </div>
+                    </div>
+                    <div id="mensaje" class="mensaje" role="status" aria-live="polite" aria-atomic="true">Esperando acceso a la cámara...</div>
+                </div>
+                <div class="asistencia">
+                    <div class="asistencia-heading">
+                        <h2>Asistencia de hoy</h2>
+                        <div class="resumen">
+                            <span>Estudiantes: <strong id="total">{{ resumen.total }}</strong></span>
+                            <span>Presentes: <strong id="presentes">{{ resumen.presentes }}</strong></span>
+                            <span>Pendientes: <strong id="pendientes">{{ resumen.pendientes }}</strong></span>
+                        </div>
+                    </div>
+                    <div class="tabla-contenedor" tabindex="0" role="region" aria-label="Tabla de asistencias de hoy">
+                        <table>
+                            <thead><tr><th scope="col">Código</th><th scope="col">Estudiante</th><th scope="col">Hora</th><th scope="col">Estado</th></tr></thead>
+                            <tbody id="tabla-asistencias">
+                                {% for item in historial %}
+                                <tr><td>{{ item.codigo }}</td><td>{{ item.nombre }}</td><td>{{ item.hora }}</td><td><span class="etiqueta-presente">Presente</span></td></tr>
+                                {% empty %}
+                                <tr><td colspan="4" class="sin-datos">Todavía no existen asistencias registradas hoy.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="table-note">Últimos 10 registros · Se actualiza automáticamente.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script>
+
+        // =====================================
+        // ELEMENTOS DE LA INTERFAZ
+        // =====================================
+
+        const video = document.getElementById("video");
+        const estado = document.getElementById("estado");
+        const mensaje = document.getElementById("mensaje");
+
+        const marcos = document.getElementById("marcos");
+        const contexto = marcos.getContext("2d");
+
+        const captura = document.createElement("canvas");
+        const contextoCaptura = captura.getContext("2d");
+
+        const total = document.getElementById("total");
+        const presentes = document.getElementById("presentes");
+        const pendientes = document.getElementById("pendientes");
+
+        const tabla = document.getElementById(
+            "tabla-asistencias"
+        );
+
+        // =====================================
+        // VARIABLES DE CONTROL
+        // =====================================
+
+        let stream = null;
+        let intervalo = null;
+        let procesando = false;
+        let ultimosDatos = null;
+
+        // Mantener visible la confirmación de
+        // una asistencia nueva durante unos segundos
+        let avisoNuevoHasta = 0;
+
+        // =====================================
+        // FECHA ACTUAL
+        // =====================================
+
+        document.getElementById("fecha").textContent =
+            new Intl.DateTimeFormat("es-EC", {
+                dateStyle: "full"
+            }).format(new Date());
+
+        // =====================================
+        // ACTUALIZAR ESTADO DE CÁMARA
+        // =====================================
+
+        function actualizarEstado(texto, tipo = "") {
+
+            estado.textContent = texto;
+            estado.className = "estado";
+
+            if (tipo) {
+                estado.classList.add(tipo);
+            }
+        }
+
+        // =====================================
+        // MOSTRAR MENSAJES
+        // =====================================
+
+        function mostrarMensaje(texto, tipo = "") {
+
+            // Evitar actualizar innecesariamente
+            // el mismo mensaje en cada fotograma
+            if (
+                mensaje.textContent === texto &&
+                mensaje.className ===
+                    ("mensaje" + (tipo ? " " + tipo : ""))
+            ) {
+                return;
+            }
+
+            mensaje.textContent = texto;
+            mensaje.className = "mensaje";
+
+            if (tipo) {
+                mensaje.classList.add(tipo);
+            }
+        }
+
+        // =====================================
+        // TOKEN DE SEGURIDAD CSRF
+        // =====================================
+
+        function obtenerTokenCSRF() {
+
+            const campo = document.querySelector(
+                '[name="csrfmiddlewaretoken"]'
+            );
+
+            return campo ? campo.value : "";
+        }
+
+        // =====================================
+        // ACTUALIZAR CONTADORES
+        // =====================================
+
+        function actualizarResumen(resumen) {
+
+            if (!resumen) return;
+
+            total.textContent = resumen.total;
+            presentes.textContent = resumen.presentes;
+            pendientes.textContent = resumen.pendientes;
+        }
+
+        // =====================================
+        // ACTUALIZAR TABLA DE ASISTENCIAS
+        // =====================================
+
+        function actualizarTabla(historial) {
+
+            if (!Array.isArray(historial)) {
+                return;
+            }
+
+            tabla.replaceChildren();
+
+            if (historial.length === 0) {
+
+                const fila = document.createElement("tr");
+                const celda = document.createElement("td");
+
+                celda.colSpan = 4;
+                celda.className = "sin-datos";
+
+                celda.textContent =
+                    "Todavía no existen asistencias registradas hoy.";
+
+                fila.appendChild(celda);
+                tabla.appendChild(fila);
+
+                return;
+            }
+
+            for (const item of historial) {
+
+                const fila = document.createElement("tr");
+
+                const codigo = document.createElement("td");
+                codigo.textContent = item.codigo;
+
+                const nombre = document.createElement("td");
+                nombre.textContent = item.nombre;
+
+                const hora = document.createElement("td");
+                hora.textContent = item.hora;
+
+                const estadoCelda = document.createElement("td");
+
+                const etiqueta = document.createElement("span");
+
+                etiqueta.className = "etiqueta-presente";
+                etiqueta.textContent = "Presente";
+
+                estadoCelda.appendChild(etiqueta);
+
+                fila.append(
+                    codigo,
+                    nombre,
+                    hora,
+                    estadoCelda
+                );
+
+                tabla.appendChild(fila);
+            }
+        }
+
+        // =====================================
+        // RESULTADOS DE LA ASISTENCIA
+        // =====================================
+
+        function mostrarResultadoAsistencia(resultado, rostros) {
+
+            if (!resultado) {
+                return;
+            }
+
+            const ahora = Date.now();
+
+            // ---------------------------------
+            // PRIMER REGISTRO
+            // ---------------------------------
+
+            if (resultado.estado === "REGISTRADA") {
+
+                avisoNuevoHasta = ahora + 5000;
+
+                mostrarMensaje(
+                    "✓ " + resultado.mensaje,
+                    "correcto"
+                );
+
+                return;
+            }
+
+            // Mantener visible el mensaje del
+            // registro nuevo durante 5 segundos
+            if (ahora < avisoNuevoHasta) {
+                return;
+            }
+
+            // ---------------------------------
+            // ASISTENCIA YA REGISTRADA
+            // ---------------------------------
+
+            if (resultado.estado === "YA_REGISTRADA") {
+
+                mostrarMensaje(
+                    "✓ Ya tienes tu asistencia registrada.",
+                    "correcto"
+                );
+
+                return;
+            }
+
+            // ---------------------------------
+            // VERIFICANDO IDENTIDAD
+            // ---------------------------------
+
+            if (resultado.estado === "VERIFICANDO") {
+
+                mostrarMensaje(
+                    resultado.mensaje
+                );
+
+                return;
+            }
+
+            // ---------------------------------
+            // SESIÓN CERRADA
+            // ---------------------------------
+
+            if (resultado.estado === "CERRADA") {
+
+                mostrarMensaje(
+                    resultado.mensaje,
+                    "error"
+                );
+
+                return;
+            }
+
+            // ---------------------------------
+            // SIN ROSTROS
+            // ---------------------------------
+
+            if (rostros.length === 0) {
+
+                mostrarMensaje(
+                    "Esperando estudiantes frente a la cámara..."
+                );
+
+                return;
+            }
+
+            // ---------------------------------
+            // ROSTRO NO IDENTIFICADO
+            // ---------------------------------
+
+            mostrarMensaje(
+                "No se pudo verificar tu identidad. " +
+                "Si ya registraste asistencia, " +
+                "tu registro permanece guardado.",
+                "advertencia"
+            );
+        }
+
+        // =====================================
+        // INICIAR CÁMARA AUTOMÁTICAMENTE
+        // =====================================
+
+        async function iniciarCamara() {
+
+            try {
+
+                actualizarEstado("Iniciando cámara...");
+
+                if (
+                    !navigator.mediaDevices ||
+                    !navigator.mediaDevices.getUserMedia
+                ) {
+                    throw new Error(
+                        "El navegador no admite el acceso a la cámara."
+                    );
+                }
+
+                stream =
+                    await navigator.mediaDevices.getUserMedia({
+
+                        video: {
+                            width: { ideal: 640 },
+                            height: { ideal: 480 },
+                            facingMode: "user"
+                        },
+
+                        audio: false
+                    });
+
+                video.srcObject = stream;
+
+                await video.play();
+
+                actualizarEstado(
+                    "Cámara activa",
+                    "activa"
+                );
+
+                mostrarMensaje(
+                    "Cámara activa. Buscando rostros..."
+                );
+
+                // Enviar un fotograma aproximadamente
+                // cada 900 milisegundos
+                intervalo = setInterval(
+                    analizarFotograma,
+                    900
+                );
+
+                analizarFotograma();
+
+            } catch (error) {
+
+                console.error(
+                    "Error de cámara:",
+                    error
+                );
+
+                actualizarEstado(
+                    "Error de cámara",
+                    "error"
+                );
+
+                const errores = {
+
+                    NotFoundError:
+                        "No se encontró ninguna cámara conectada.",
+
+                    NotAllowedError:
+                        "No se concedió permiso para usar la cámara.",
+
+                    NotReadableError:
+                        "La cámara está ocupada o no está disponible.",
+
+                    OverconstrainedError:
+                        "La cámara no admite la configuración solicitada."
+                };
+
+                mostrarMensaje(
+                    errores[error.name] ||
+                    "No se pudo iniciar la cámara.",
+                    "error"
+                );
+            }
+        }
+
+        // =====================================
+        // ANALIZAR FOTOGRAMAS CON DJANGO
+        // =====================================
+
+        async function analizarFotograma() {
+
+            // Evitar solicitudes simultáneas
+            if (
+                procesando ||
+                video.readyState < 2 ||
+                !stream ||
+                !video.videoWidth
+            ) {
+                return;
+            }
+
+            procesando = true;
+
+            try {
+
+                // Reducir tamaño del fotograma
+                const ancho = 480;
+
+                const alto = Math.round(
+                    video.videoHeight *
+                    ancho / video.videoWidth
+                );
+
+                if (
+                    !alto ||
+                    !Number.isFinite(alto)
+                ) {
+                    return;
+                }
+
+                captura.width = ancho;
+                captura.height = alto;
+
+                contextoCaptura.drawImage(
+                    video,
+                    0,
+                    0,
+                    ancho,
+                    alto
+                );
+
+                // Convertir a JPEG
+                const imagen = captura.toDataURL(
+                    "image/jpeg",
+                    0.65
+                );
+
+                // Enviar fotograma al backend
+                const respuesta = await fetch(
+                    "{% url 'detectar_rostros' %}",
+                    {
+                        method: "POST",
+                        credentials: "same-origin",
+
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRFToken": obtenerTokenCSRF()
+                        },
+
+                        body: JSON.stringify({
+                            imagen: imagen
+                        })
+                    }
+                );
+
+                const datos = await respuesta.json();
+
+                if (!respuesta.ok) {
+
+                    throw new Error(
+                        datos.error ||
+                        "No se pudo procesar la imagen."
+                    );
+                }
+
+                // Guardar resultados actuales
+                ultimosDatos = datos;
+
+                // Dibujar los rostros
+                dibujarRostros(
+                    datos.rostros,
+                    datos.ancho,
+                    datos.alto
+                );
+
+                // Actualizar estadísticas
+                actualizarResumen(datos.resumen);
+
+                // Actualizar historial
+                actualizarTabla(datos.historial);
+
+                // Mostrar resultado de asistencia
+                mostrarResultadoAsistencia(
+                    datos.asistencia,
+                    datos.rostros
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "Error de procesamiento:",
+                    error
+                );
+
+                ultimosDatos = null;
+
+                // Borrar recuadros anteriores
+                contexto.clearRect(
+                    0,
+                    0,
+                    marcos.width,
+                    marcos.height
+                );
+
+                mostrarMensaje(
+                    "Error: " + error.message,
+                    "error"
+                );
+
+            } finally {
+
+                procesando = false;
+            }
+        }
+
+        // =====================================
+        // DIBUJAR ROSTROS Y NOMBRES
+        // =====================================
+
+        function dibujarRostros(
+            rostros,
+            anchoImagen,
+            altoImagen
+        ) {
+
+            const anchoVideo = video.clientWidth;
+            const altoVideo = video.clientHeight;
+
+            marcos.width = anchoVideo;
+            marcos.height = altoVideo;
+
+            contexto.clearRect(
+                0,
+                0,
+                marcos.width,
+                marcos.height
+            );
+
+            if (
+                !anchoImagen ||
+                !altoImagen
+            ) {
+                return;
+            }
+
+            // Ajustar posición de recuadros
+            const escala = Math.min(
+                anchoVideo / anchoImagen,
+                altoVideo / altoImagen
+            );
+
+            const desplazamientoX =
+                (anchoVideo - anchoImagen * escala) / 2;
+
+            const desplazamientoY =
+                (altoVideo - altoImagen * escala) / 2;
+
+            for (const rostro of rostros) {
+
+                const x =
+                    desplazamientoX + rostro.x * escala;
+
+                const y =
+                    desplazamientoY + rostro.y * escala;
+
+                const w = rostro.w * escala;
+                const h = rostro.h * escala;
+
+                // Verde para coincidencia,
+                // naranja para desconocido
+                const color = rostro.identificado
+                    ? "#22c55e"
+                    : "#f59e0b";
+
+                contexto.strokeStyle = color;
+                contexto.lineWidth = 3;
+
+                // Rectángulo facial
+                contexto.strokeRect(
+                    x,
+                    y,
+                    w,
+                    h
+                );
+
+                // Nombre del estudiante
+                const nombre = rostro.identificado
+                    ? rostro.nombre
+                    : "Desconocido";
+
+                contexto.font = "bold 15px Arial";
+
+                const anchoTexto =
+                    contexto.measureText(nombre).width;
+
+                const anchoEtiqueta = Math.min(
+                    anchoVideo,
+                    Math.max(anchoTexto + 20, 110)
+                );
+
+                const posicionX = Math.max(
+                    0,
+                    Math.min(
+                        x,
+                        anchoVideo - anchoEtiqueta
+                    )
+                );
+
+                const posicionY = Math.max(
+                    0,
+                    y - 28
+                );
+
+                // Fondo de la etiqueta
+                contexto.fillStyle = color;
+
+                contexto.fillRect(
+                    posicionX,
+                    posicionY,
+                    anchoEtiqueta,
+                    26
+                );
+
+                // Texto de la etiqueta
+                contexto.fillStyle = "#ffffff";
+
+                contexto.fillText(
+                    nombre,
+                    posicionX + 8,
+                    posicionY + 18,
+                    anchoEtiqueta - 12
+                );
+            }
+        }
+
+        // =====================================
+        // AJUSTAR RECUADROS AL REDIMENSIONAR
+        // =====================================
+
+        window.addEventListener("resize", () => {
+
+            if (ultimosDatos) {
+
+                dibujarRostros(
+                    ultimosDatos.rostros,
+                    ultimosDatos.ancho,
+                    ultimosDatos.alto
+                );
+            }
+        });
+
+        // =====================================
+        // DETENER CÁMARA AL SALIR
+        // =====================================
+
+        window.addEventListener("pagehide", () => {
+
+            if (intervalo) {
+                clearInterval(intervalo);
+            }
+
+            if (stream) {
+
+                stream.getTracks().forEach(
+                    track => track.stop()
+                );
+            }
+        });
+
+        // =====================================
+        // ACTIVACIÓN AUTOMÁTICA
+        // =====================================
+
+        iniciarCamara();
+
+    </script>
+</body>
+</html>

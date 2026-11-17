@@ -1,0 +1,34 @@
+﻿# Entorno virtual
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Datos personales y base de datos
+db.sqlite3
+*.sqlite3
+estudiantes.csv
+fotografias_estudiantes/
+media/
+uploads/
+
+# Datos de reconocimiento facial
+*.pkl
+*.pickle
+*.npy
+
+# Configuracion privada
+.env
+.env.*
+!.env.example
+*.key
+
+# Archivos temporales
+.vscode/
+*.log
+
+/reconocimiento_facial/modelo_asistencia.yml
